@@ -29,6 +29,18 @@ pip install -r requirements.txt
 
 如果使用 Docker 部署 AstrBot，请在 AstrBot 容器内安装依赖。
 
+## LLM 前提
+
+智能搜索依赖 AstrBot 已经配置并启用了可用的 LLM Provider。插件会调用 AstrBot 当前会话的模型生成搜索计划。
+
+如果没有配置 LLM，或者模型调用失败，插件会自动降级为规则搜索；基础功能仍可使用，包括：
+
+```text
+jm 查询 <id>
+jm 搜索 <关键词>
+jm <id>
+```
+
 ## 命令
 
 ```text
@@ -57,6 +69,8 @@ jm 第一个
 - `notify_password_to_target_sessions`: 是否向额外目标发送 PDF 密码。
 - `enable_natural_language`: 是否开启自然语言搜索/下载。
 - `group_natural_language_require_at`: 群聊自然语言是否需要 @ 机器人。
+
+`enable_natural_language` 和更复杂的智能检索效果依赖 AstrBot LLM Provider。未配置 LLM 时，插件会使用内置规则做基础搜索。
 
 额外发送目标示例：
 
