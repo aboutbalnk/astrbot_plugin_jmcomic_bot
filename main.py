@@ -395,10 +395,10 @@ class JMComicPlugin(Star):
         if not self._claim_event(event, claim_action, search_query):
             return None
 
-        await event.send(event.plain_result(f"正在搜索：{search_query}"))
         search_request = await self._build_search_request(event, search_query)
         plan = search_request["plan"]
         constraints = search_request["constraints"]
+        await event.send(event.plain_result(f"正在搜索：{self._search_notice_query(search_query, plan)}"))
         result = await asyncio.to_thread(self._run_search_plan, search_query, plan, constraints)
         self._remember_search_items(event, result["items"])
         return result
@@ -756,7 +756,8 @@ class JMComicPlugin(Star):
             "order_by: latest=最新, views=观看/浏览, likes=点赞/喜欢, pictures=页数。\n"
             "constraints 可选字段：max_chapters, max_pages, result_limit, search_pages。\n"
             "规则：\n"
-            "- keyword 必须保留用户真正想搜的作者、作品、角色、标签或核心描述，去掉“本子/漫画/风格/题材/相关/这种/帮我/搜一下”等泛词。\n"
+            "- keyword 必须保留用户真正想搜的作者、作品、角色、标签或核心描述，去掉“本子/漫画/风格/题材/相关/这种/帮我/搜一下/我想看”等泛词。\n"
+            "- 如果用户像是在说完整作品名，keyword 应保留完整作品名，不要拆词，不要误删作品名中的助词或连接词。\n"
             "- 多个核心词组成一个短语时，优先保留完整短语；如果短语可能过窄，可追加一条用空格分隔核心词的检索。\n"
             "- 不需要凑满 6 条检索；关键词明确时优先输出 1 条高质量检索。\n"
             "- 如果是作者作品、按观看/喜欢排序、或需要更充分候选，可设置 constraints.search_pages=2 到 5。\n"
@@ -774,10 +775,14 @@ class JMComicPlugin(Star):
         )
 
     def _fallback_search_plan(self, search_query: str) -> list[dict[str, Any]]:
-        keywords = [search_query]
+        keywords = []
         cleaned = self._strip_search_noise(search_query)
         if cleaned and cleaned not in keywords:
             keywords.append(cleaned)
+        if not keywords:
+            keywords.append(search_query)
+        elif re.search(r"(^|\s)[+-]\S+", search_query):
+            keywords.append(search_query)
 
         compact = re.sub(r"\s+", " ", cleaned or search_query).strip()
         if compact and compact not in keywords:
@@ -792,9 +797,17 @@ class JMComicPlugin(Star):
         return self._adjust_search_plan(search_query, plan)
 
     @staticmethod
+    def _search_notice_query(search_query: str, plan: list[dict[str, Any]]) -> str:
+        for item in plan or []:
+            keyword = str(item.get("keyword") or "").strip()
+            if keyword:
+                return keyword
+        return JMComicPlugin._strip_search_noise(search_query) or search_query.strip()
+
+    @staticmethod
     def _strip_search_noise(search_query: str) -> str:
         query = re.sub(
-            r"(帮我|帮忙|麻烦|请|给我|我想|想|搜索一下|搜一下|找一下|搜索|搜|找|有没有|推荐|来点)",
+            r"(帮我|帮忙|麻烦|请|给我|我要看|我想要看|我想看|想要看|想看|我想要|我想|想要|想|搜索一下|搜一下|找一下|搜索|搜|找|有没有|推荐|来点)",
             " ",
             search_query,
         )
@@ -810,7 +823,7 @@ class JMComicPlugin(Star):
             query,
         )
         query = re.sub(
-            r"(本子|漫画|禁漫|JM|jm|车号|一下|看看|看过没|点|吗|啊|吧|的|风格|画风|类型|類型|题材|題材|主题|主題|相关|相關|有关|有關|这种|這種|那种|那種)",
+            r"(本子|漫画|禁漫|JM|jm|车号|一下|看看|看过没|点|吗|啊|吧|风格|画风|类型|類型|题材|題材|主题|主題|相关|相關|有关|有關|这种|這種|那种|那種)",
             " ",
             query,
         )
