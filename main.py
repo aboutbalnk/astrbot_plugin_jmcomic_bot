@@ -325,6 +325,44 @@ class JMComicPlugin(Star):
             logger.exception("JMComic search failed")
             yield event.plain_result(f"搜索失败：{exc}")
 
+    async def reference_search(self, event: AstrMessageEvent, album_id: str, mode: str):
+        """根据参考本子搜索同作者/相似风格作品。"""
+        claim_target = f"{mode}:{album_id}"
+        if not self._claim_event(event, "reference_search", claim_target):
+            return
+
+        mode_label = self._reference_mode_label(mode)
+        await event.send(event.plain_result(f"正在查找 JM{album_id} 的{mode_label}作品"))
+        try:
+            album = await asyncio.to_thread(self._get_album_detail, album_id)
+            plan = self._build_reference_search_plan(album, mode, self._infer_order_by(event.message_str))
+            if not plan:
+                yield event.plain_result(f"没有从 JM{album_id} 提取到可用于搜索的作者、作品或标签。")
+                return
+
+            constraints = self._sanitize_search_constraints(
+                {"exclude_ids": [str(album_id)]},
+                event.message_str,
+            )
+            result = await asyncio.to_thread(
+                self._run_search_plan,
+                f"JM{album_id} {mode_label}",
+                plan,
+                constraints,
+            )
+            self._remember_search_items(event, result["items"])
+            yield event.plain_result(
+                "\n".join(
+                    [
+                        f"参考：JM{album_id} {self._truncate_text(getattr(album, 'name', ''))}",
+                        self._format_search_result(result),
+                    ]
+                )
+            )
+        except Exception as exc:
+            logger.exception("JMComic reference search failed")
+            yield event.plain_result(f"查找失败：{exc}")
+
     async def download(self, event: AstrMessageEvent, album_id: str):
         """下载整个本子，导出 PDF 并发送到聊天。"""
         if not self._claim_event(event, "download", album_id):
@@ -415,6 +453,8 @@ class JMComicPlugin(Star):
     @filter.regex(r"^.*[jJ][mM]\s*(?:查询|查|[iI][nN][fF][oO])\D*\d{3,}.*$")
     async def plain_info(self, event: AstrMessageEvent):
         """兼容 jm 查询 123 / JM123查一下。"""
+        if self._is_reference_search_message(event.message_str):
+            return
         album_id = self._extract_first_number(event.message_str)
         if album_id is None:
             yield event.plain_result("请提供 JM 车号，例如：jm 查询 123456")
@@ -425,6 +465,8 @@ class JMComicPlugin(Star):
     @filter.regex(r"^.*[jJ][mM]\s*(?:查询|查)\D*\d{3,}.*$")
     async def plain_info_cn(self, event: AstrMessageEvent):
         """兼容 jm 查询 123。"""
+        if self._is_reference_search_message(event.message_str):
+            return
         album_id = self._extract_first_number(event.message_str)
         if album_id is None:
             yield event.plain_result("请提供 JM 车号，例如：jm 查询 123456")
@@ -440,6 +482,17 @@ class JMComicPlugin(Star):
             yield event.plain_result("请输入搜索关键词，例如：jm 搜索 <关键词>")
             return
         async for result in self.search(event, search_query):
+            yield result
+
+    @filter.regex(r"^(?=.*[jJ][mM]\D*\d{3,})(?=.*(?:同作者|同一作者|作者.*(?:作品|其他|更多)|同风格|同画风|同類型|同类型|同题材|类似|相似|相关)).*$")
+    async def plain_reference_search(self, event: AstrMessageEvent):
+        """兼容 JM123 同作者 / JM123 同风格。"""
+        album_id = self._extract_reference_album_id(event.message_str)
+        if album_id is None:
+            yield event.plain_result("请提供参考 JM 车号，例如：jm 123456 同作者")
+            return
+        mode = self._reference_search_mode(event.message_str)
+        async for result in self.reference_search(event, album_id, mode):
             yield result
 
     @filter.regex(r"^(?!.*[jJ][mM])\s*\S[\s\S]*$")
@@ -512,6 +565,8 @@ class JMComicPlugin(Star):
     @filter.regex(r"^.*[jJ][mM](?!\s*(?:查询|查|[iI][nN][fF][oO]|搜索|搜|[sS][eE][aA][rR][cC][hH]|帮助|[hH][eE][lL][pP]|路径|[pP][aA][tT][hH]|章节|[pP][hH][oO][tT][oO]|下载|[dD][oO][wW][nN][lL][oO][aA][dD]|[dD][lL]))\D*\d{3,}.*$")
     async def plain_default_download(self, event: AstrMessageEvent):
         """兼容 jm 123 / JM123看过没，默认下载本子。"""
+        if self._is_reference_search_message(event.message_str):
+            return
         album_id = self._extract_first_number(event.message_str)
         if album_id is None:
             yield event.plain_result("请提供 JM 车号，例如：jm 123456")
@@ -538,12 +593,48 @@ class JMComicPlugin(Star):
         return None
 
     @staticmethod
+    def _extract_reference_album_id(message: str) -> str | None:
+        jm_match = re.search(r"(?i)jm", message)
+        number_source = message[jm_match.end():] if jm_match else message
+        match = re.search(r"\d{3,}", number_source)
+        return match.group(0) if match else None
+
+    @staticmethod
+    def _is_reference_search_message(message: str) -> bool:
+        return bool(
+            re.search(
+                r"(同作者|同一作者|作者.*(?:作品|其他|更多)|同风格|同画风|同類型|同类型|同题材|类似|相似|相关)",
+                message,
+            )
+        )
+
+    def _reference_search_mode(self, message: str) -> str:
+        has_author = bool(re.search(r"(同作者|同一作者|作者.*(?:作品|其他|更多))", message))
+        has_style = bool(re.search(r"(同风格|同画风|同類型|同类型|同题材|类似|相似|相关)", message))
+        if has_author and has_style:
+            return "all"
+        if has_author:
+            return "author"
+        return "style"
+
+    @staticmethod
+    def _reference_mode_label(mode: str) -> str:
+        return {
+            "author": "同作者",
+            "style": "相似风格",
+            "all": "同作者/相似风格",
+        }.get(mode, "相关")
+
+    @staticmethod
     def _help_text() -> str:
         return "\n".join(
             [
                 "JMComic 命令：",
                 "jm 查询 <id> - 查询信息",
                 "jm 搜索 <关键词> - 搜索本子",
+                "jm <id> 同作者 - 查找同作者作品",
+                "jm <id> 同风格 - 查找相似风格作品",
+                "jm <id> 同作者 同风格 - 混合查找相关作品",
                 "jm <id> - 下载并发送 PDF",
             ]
         )
@@ -844,6 +935,11 @@ class JMComicPlugin(Star):
                 value = self._coerce_positive_int(llm_constraints.get(key))
                 if value is not None:
                     constraints[key] = value
+            exclude_ids = llm_constraints.get("exclude_ids")
+            if isinstance(exclude_ids, (list, tuple, set)):
+                constraints["exclude_ids"] = {str(item) for item in exclude_ids if str(item).strip()}
+            elif exclude_ids:
+                constraints["exclude_ids"] = {str(exclude_ids)}
 
         result_limit = constraints.get("result_limit")
         if result_limit is None:
@@ -872,6 +968,71 @@ class JMComicPlugin(Star):
             )
 
         return constraints
+
+    def _build_reference_search_plan(
+        self,
+        album: Any,
+        mode: str,
+        order_by: str,
+    ) -> list[dict[str, Any]]:
+        plan: list[dict[str, Any]] = []
+
+        authors = self._reference_terms(getattr(album, "authors", []))
+        works = self._reference_terms(getattr(album, "works", []))
+        tags = self._reference_terms(getattr(album, "tags", []))
+
+        author_steps = [
+            {"keyword": author, "main_tag": 2, "order_by": order_by}
+            for author in authors
+        ]
+        style_steps = [
+            *({"keyword": work, "main_tag": 1, "order_by": order_by} for work in works),
+            *({"keyword": tag, "main_tag": 3, "order_by": order_by} for tag in tags),
+        ]
+
+        if mode == "author":
+            plan.extend(author_steps)
+        elif mode == "style":
+            plan.extend(style_steps)
+        elif mode == "all":
+            while len(plan) < self.search_plan_limit and (author_steps or style_steps):
+                if author_steps:
+                    plan.append(author_steps.pop(0))
+                if style_steps and len(plan) < self.search_plan_limit:
+                    plan.append(style_steps.pop(0))
+
+        if not plan:
+            plan.extend(
+                {"keyword": author, "main_tag": 2, "order_by": order_by}
+                for author in authors[: self.search_plan_limit]
+            )
+
+        return self._dedupe_search_plan(plan)
+
+    @staticmethod
+    def _reference_terms(values: Any) -> list[str]:
+        if not values:
+            return []
+
+        generic_terms = {
+            "中文",
+            "漢化",
+            "汉化",
+            "翻译",
+            "翻譯",
+            "english",
+            "chinese",
+        }
+        terms = []
+        for value in values:
+            term = str(value).strip()
+            if len(term) < 2:
+                continue
+            if term.lower() in generic_terms:
+                continue
+            if term not in terms:
+                terms.append(term)
+        return terms
 
     @staticmethod
     def _coerce_positive_int(value: Any) -> int | None:
@@ -1092,9 +1253,11 @@ class JMComicPlugin(Star):
     ) -> list[dict[str, Any]]:
         max_pages = int(constraints.get("max_pages") or self.max_search_page_count)
         max_chapters = int(constraints.get("max_chapters") or self.max_search_page_count)
+        exclude_ids = {str(item) for item in constraints.get("exclude_ids", set())}
         return [
             item
             for item in items
+            if str(item.get("id", "")) not in exclude_ids
             if self._is_short_enough(item, max_pages, max_chapters)
             and (not self.filter_serial_tags or not self._has_serial_tag(item))
         ]
