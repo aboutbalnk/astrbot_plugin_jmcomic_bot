@@ -504,6 +504,14 @@ class JMComicPlugin(Star):
         if not self._should_consider_natural_language(event):
             return
 
+        if self._is_reference_search_message(event.message_str):
+            album_id = self._extract_reference_album_id(event.message_str)
+            if album_id:
+                mode = self._reference_search_mode(event.message_str)
+                async for result in self.reference_search(event, album_id, mode):
+                    yield result
+                return
+
         intent = await self._parse_natural_language_intent(event)
         action = intent.get("action", "none")
 
