@@ -138,6 +138,12 @@
         "default": true,
         "hint": "开启后群聊里只有 @ 机器人时才处理自然语言；jm 指令不受影响"
     },
+    "proxy": {
+        "description": "JM 请求代理",
+        "type": "string",
+        "default": "",
+        "hint": "JM 搜索和下载请求使用的代理，例如 http://172.23.0.1:7890。留空使用 jmcomic 默认/系统代理；填 none/off/关闭 可显式禁用代理"
+    },
     "html_domains": {
         "description": "JM 域名列表",
         "type": "list",

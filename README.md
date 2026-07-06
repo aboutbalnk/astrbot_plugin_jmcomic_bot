@@ -138,8 +138,17 @@ jm 第一个
 - `notify_password_to_target_sessions`: 是否向额外目标发送 PDF 密码。
 - `enable_natural_language`: 是否开启自然语言搜索/下载。
 - `group_natural_language_require_at`: 群聊自然语言是否需要 @ 机器人。
+- `proxy`: JM 搜索和下载请求使用的代理。
 
 `enable_natural_language` 和更复杂的智能检索效果依赖 AstrBot LLM Provider。未配置 LLM 时，插件会使用内置规则做基础搜索。
+
+代理配置示例：
+
+```text
+proxy: http://172.23.0.1:7890
+```
+
+Docker 部署时，`127.0.0.1` 指的是 AstrBot 容器内部，不是宿主机。若代理运行在宿主机 Clash/Mihomo 上，通常应填写 Docker 网关地址，例如 `http://172.23.0.1:7890`。留空时使用 jmcomic 默认/系统代理；填写 `none`、`off` 或 `关闭` 可显式禁用代理。
 
 额外发送目标示例：
 

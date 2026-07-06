@@ -81,6 +81,7 @@ DEFAULT_CONFIG = {
     "filter_serial_tags": True,
     "enable_natural_language": True,
     "group_natural_language_require_at": True,
+    "proxy": "",
     "html_domains": ["jmcomic1.me", "jmcomic.me"],
     "image_thread_count": 8,
     "photo_thread_count": 2,
@@ -183,6 +184,7 @@ class JMComicPlugin(Star):
             "group_natural_language_require_at",
             DEFAULT_CONFIG["group_natural_language_require_at"],
         )
+        self.proxy = self._cfg_str("proxy", DEFAULT_CONFIG["proxy"])
         self.html_domains = self._cfg_list("html_domains", DEFAULT_CONFIG["html_domains"])
         self.image_thread_count = self._cfg_int(
             "image_thread_count",
@@ -655,6 +657,11 @@ class JMComicPlugin(Star):
         client_cfg = option_data.setdefault("client", {})
         domain_cfg = client_cfg.setdefault("domain", {})
         domain_cfg["html"] = self.html_domains
+        postman_cfg = client_cfg.setdefault("postman", {})
+        meta_data_cfg = postman_cfg.setdefault("meta_data", {})
+        proxy_cfg = self._build_proxy_config(self.proxy)
+        if proxy_cfg != "__unset__":
+            meta_data_cfg["proxies"] = proxy_cfg
 
         download_cfg = option_data.setdefault("download", {})
         threading_cfg = download_cfg.setdefault("threading", {})
@@ -668,6 +675,15 @@ class JMComicPlugin(Star):
             yaml.safe_dump(option_data, file, allow_unicode=True, sort_keys=False)
 
         return jmcomic.create_option_by_file(str(self.runtime_option_file))
+
+    @staticmethod
+    def _build_proxy_config(proxy: str) -> Any:
+        proxy = str(proxy or "").strip()
+        if not proxy:
+            return "__unset__"
+        if proxy.lower() in {"none", "false", "off", "关闭", "禁用"}:
+            return {}
+        return {"http": proxy, "https": proxy}
 
     def _get_album_detail(self, album_id: str):
         option = self._create_option()
