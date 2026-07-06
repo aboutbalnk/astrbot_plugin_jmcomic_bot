@@ -53,6 +53,9 @@ SEARCH_ORDER_LABELS = {
     "tf": "喜欢",
     "mp": "页数",
 }
+REFERENCE_AUTHOR_PATTERN = r"(同作者|同一作者|作者[^，,。.!！?]*(?:作品|其他|其它|別的|别的|更多)|(?:其他|其它|別的|别的|更多)[^，,。.!！?]*作者)"
+REFERENCE_STYLE_PATTERN = r"(同风格|同画风|同類型|同类型|同题材|类似|相似|相关)"
+REFERENCE_SEARCH_PATTERN = rf"(?:{REFERENCE_AUTHOR_PATTERN}|{REFERENCE_STYLE_PATTERN})"
 
 DEFAULT_CONFIG = {
     "download_dir": str(DOWNLOAD_DIR),
@@ -484,7 +487,7 @@ class JMComicPlugin(Star):
         async for result in self.search(event, search_query):
             yield result
 
-    @filter.regex(r"^(?=.*[jJ][mM]\D*\d{3,})(?=.*(?:同作者|同一作者|作者.*(?:作品|其他|更多)|同风格|同画风|同類型|同类型|同题材|类似|相似|相关)).*$")
+    @filter.regex(rf"^(?=.*[jJ][mM]\D*\d{{3,}})(?=.*{REFERENCE_SEARCH_PATTERN}).*$")
     async def plain_reference_search(self, event: AstrMessageEvent):
         """兼容 JM123 同作者 / JM123 同风格。"""
         album_id = self._extract_reference_album_id(event.message_str)
@@ -601,16 +604,11 @@ class JMComicPlugin(Star):
 
     @staticmethod
     def _is_reference_search_message(message: str) -> bool:
-        return bool(
-            re.search(
-                r"(同作者|同一作者|作者.*(?:作品|其他|更多)|同风格|同画风|同類型|同类型|同题材|类似|相似|相关)",
-                message,
-            )
-        )
+        return bool(re.search(REFERENCE_SEARCH_PATTERN, message))
 
     def _reference_search_mode(self, message: str) -> str:
-        has_author = bool(re.search(r"(同作者|同一作者|作者.*(?:作品|其他|更多))", message))
-        has_style = bool(re.search(r"(同风格|同画风|同類型|同类型|同题材|类似|相似|相关)", message))
+        has_author = bool(re.search(REFERENCE_AUTHOR_PATTERN, message))
+        has_style = bool(re.search(REFERENCE_STYLE_PATTERN, message))
         if has_author and has_style:
             return "all"
         if has_author:
