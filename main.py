@@ -22,7 +22,6 @@ PLUGIN_DIR = Path(__file__).resolve().parent
 VENDOR_DIR = PLUGIN_DIR / "vendor"
 OPTION_FILE = PLUGIN_DIR / "option.yml"
 RUNTIME_DIR = Path("/AstrBot/data/plugin_data/astrbot_plugin_jmcomic")
-RUNTIME_OPTION_FILE = RUNTIME_DIR / "option.runtime.yml"
 DOWNLOAD_DIR = Path("/AstrBot/data/jmcomic")
 PDF_DIR = Path("/AstrBot/data/jmcomic_pdf")
 COMPRESS_DIR = Path("/AstrBot/data/jmcomic_compress")
@@ -84,6 +83,7 @@ DEFAULT_CONFIG = {
     "download_dir": str(DOWNLOAD_DIR),
     "pdf_dir": str(PDF_DIR),
     "compress_temp_dir": str(COMPRESS_DIR),
+    "runtime_dir": str(RUNTIME_DIR),
     "max_send_mb": 35.0,
     "delete_after_timeout_seconds": DELETE_AFTER_TIMEOUT_SECONDS,
     "password_notice_delay_seconds": MENTION_AFTER_TIMEOUT_SECONDS,
@@ -119,6 +119,8 @@ class JMComicPlugin(Star):
         self.download_dir = Path(self._cfg_str("download_dir", DEFAULT_CONFIG["download_dir"]))
         self.pdf_dir = Path(self._cfg_str("pdf_dir", DEFAULT_CONFIG["pdf_dir"]))
         self.compress_dir = Path(self._cfg_str("compress_temp_dir", DEFAULT_CONFIG["compress_temp_dir"]))
+        self.runtime_dir = Path(self._cfg_str("runtime_dir", DEFAULT_CONFIG["runtime_dir"]))
+        self.runtime_option_file = self.runtime_dir / "option.runtime.yml"
         self.max_send_bytes = int(self._cfg_float("max_send_mb", DEFAULT_CONFIG["max_send_mb"]) * 1024 * 1024)
         self.delete_after_timeout_seconds = self._cfg_int(
             "delete_after_timeout_seconds",
@@ -214,7 +216,7 @@ class JMComicPlugin(Star):
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.pdf_dir.mkdir(parents=True, exist_ok=True)
         self.compress_dir.mkdir(parents=True, exist_ok=True)
-        RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+        self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self._handled_events: dict[tuple[str, str, str], float] = {}
         self._search_cache: dict[str, list[tuple[str, str]]] = {}
 
@@ -583,10 +585,10 @@ class JMComicPlugin(Star):
         dir_rule = option_data.setdefault("dir_rule", {})
         dir_rule["base_dir"] = str(self.download_dir)
 
-        with RUNTIME_OPTION_FILE.open("w", encoding="utf-8") as file:
+        with self.runtime_option_file.open("w", encoding="utf-8") as file:
             yaml.safe_dump(option_data, file, allow_unicode=True, sort_keys=False)
 
-        return jmcomic.create_option_by_file(str(RUNTIME_OPTION_FILE))
+        return jmcomic.create_option_by_file(str(self.runtime_option_file))
 
     def _get_album_detail(self, album_id: str):
         option = self._create_option()

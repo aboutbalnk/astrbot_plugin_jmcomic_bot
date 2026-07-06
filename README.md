@@ -46,6 +46,7 @@ jm 第一个
 - `download_dir`: JM 图片临时下载目录。
 - `pdf_dir`: PDF 输出目录。
 - `compress_temp_dir`: 压缩 PDF 时的临时目录。
+- `runtime_dir`: 插件生成 jmcomic 运行时配置文件的目录。
 - `max_send_mb`: PDF 目标大小。
 - `pdf_compress_profiles`: PDF 压缩档位，格式如 `1600:68,1280:58,1000:48`。
 - `encrypt_pdf`: 是否发送前加密 PDF。
@@ -67,6 +68,28 @@ friend:123456789
 ```
 
 完整格式推荐使用 `平台ID:消息类型:会话ID`，例如 `default:GroupMessage:123456789`。`group:` 和 `friend:` 是当前平台下的简写。
+
+## 目录配置
+
+默认目录按 AstrBot Docker 容器内路径设置：
+
+```text
+/AstrBot/data/jmcomic
+/AstrBot/data/jmcomic_pdf
+/AstrBot/data/jmcomic_compress
+/AstrBot/data/plugin_data/astrbot_plugin_jmcomic
+```
+
+如果你使用 Docker 部署 AstrBot，通常保持默认即可。路径是容器内路径，不是宿主机路径；需要查看文件时，请确认 Docker volume 映射到宿主机的位置。
+
+如果你不是 Docker 部署，或者本机没有 `/AstrBot/data` 写入权限，请在 AstrBot WebUI 中把这些配置改成 AstrBot 进程可写目录，例如：
+
+```text
+download_dir: ./data/jmcomic
+pdf_dir: ./data/jmcomic_pdf
+compress_temp_dir: ./data/jmcomic_compress
+runtime_dir: ./data/plugin_data/astrbot_plugin_jmcomic
+```
 
 ## 注意
 
