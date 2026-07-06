@@ -33,6 +33,7 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 SEARCH_RESULT_LIMIT = 10
 SEARCH_CANDIDATE_LIMIT = 30
 SEARCH_PLAN_LIMIT = 6
+SEARCH_PAGE_LIMIT = 3
 MAX_SEARCH_PAGE_COUNT = 100
 SERIAL_TAG_PATTERN = re.compile(r"(连载|連載|连载中|連載中|连载狀態|連載狀態)")
 SEARCH_ORDER_MAP = {
@@ -72,6 +73,7 @@ DEFAULT_CONFIG = {
     "search_result_limit": SEARCH_RESULT_LIMIT,
     "search_candidate_limit": SEARCH_CANDIDATE_LIMIT,
     "search_plan_limit": SEARCH_PLAN_LIMIT,
+    "search_page_limit": SEARCH_PAGE_LIMIT,
     "max_search_page_count": MAX_SEARCH_PAGE_COUNT,
     "filter_serial_tags": True,
     "enable_natural_language": True,
@@ -153,6 +155,12 @@ class JMComicPlugin(Star):
             DEFAULT_CONFIG["search_plan_limit"],
             minimum=1,
             maximum=20,
+        )
+        self.search_page_limit = self._cfg_int(
+            "search_page_limit",
+            DEFAULT_CONFIG["search_page_limit"],
+            minimum=1,
+            maximum=10,
         )
         self.max_search_page_count = self._cfg_int(
             "max_search_page_count",
@@ -633,10 +641,12 @@ class JMComicPlugin(Star):
             "工具 search_album 参数：keyword, main_tag, order_by。\n"
             "main_tag: 0=站内综合, 1=作品, 2=作者, 3=标签, 4=角色。\n"
             "order_by: latest=最新, views=观看/浏览, likes=点赞/喜欢, pictures=页数。\n"
-            "constraints 可选字段：max_chapters, max_pages, result_limit。\n"
+            "constraints 可选字段：max_chapters, max_pages, result_limit, search_pages。\n"
             "规则：\n"
             "- keyword 必须保留用户真正想搜的作者、作品、角色、标签或核心描述，去掉“本子/漫画/风格/题材/相关/这种/帮我/搜一下”等泛词。\n"
             "- 多个核心词组成一个短语时，优先保留完整短语；如果短语可能过窄，可追加一条用空格分隔核心词的检索。\n"
+            "- 不需要凑满 6 条检索；关键词明确时优先输出 1 条高质量检索。\n"
+            "- 如果是作者作品、按观看/喜欢排序、或需要更充分候选，可设置 constraints.search_pages=2 到 5。\n"
             "- 用户显式输入 JM 高级搜索语法（例如 +A +B、A -B）时，应原样保留 + 和 -。\n"
             "- “作者 XXX 的作品”必须 keyword=XXX 且 main_tag=2。\n"
             "- “角色 XXX”优先 keyword=XXX 且 main_tag=4；“标签 XXX”优先 keyword=XXX 且 main_tag=3。\n"
@@ -647,7 +657,7 @@ class JMComicPlugin(Star):
             "- 用户说“看的人多/最多观看/最多浏览/热门/人气”时，主要检索 order_by 用 views；如果同时明确喜欢，则以 likes 为准。\n"
             "- 不要编造不存在的作者、作品、角色或标签；最多输出 6 个检索。\n"
             '输出格式：{"searches":[{"keyword":"XXX","main_tag":2,"order_by":"views"}],'
-            '"constraints":{"result_limit":5,"max_chapters":3}}'
+            '"constraints":{"result_limit":5,"max_chapters":3,"search_pages":2}}'
         )
 
     def _fallback_search_plan(self, search_query: str) -> list[dict[str, Any]]:
@@ -707,7 +717,12 @@ class JMComicPlugin(Star):
             for item in plan
         )
 
-        for keyword in ([] if has_advanced_keyword else self._expand_keyword_variants(protected_keyword)):
+        should_add_protected = not plan or bool(self._extract_advanced_search_keyword(search_query))
+        for keyword in (
+            []
+            if has_advanced_keyword or not should_add_protected
+            else self._expand_keyword_variants(protected_keyword)
+        ):
             adjusted.append(
                 {
                     "keyword": keyword,
@@ -825,7 +840,7 @@ class JMComicPlugin(Star):
     ) -> dict[str, Any]:
         constraints = self._infer_search_constraints(search_query)
         if isinstance(llm_constraints, dict):
-            for key in ("max_chapters", "max_pages", "result_limit"):
+            for key in ("max_chapters", "max_pages", "result_limit", "search_pages"):
                 value = self._coerce_positive_int(llm_constraints.get(key))
                 if value is not None:
                     constraints[key] = value
@@ -850,6 +865,11 @@ class JMComicPlugin(Star):
             constraints["max_chapters"] = max(int(constraints["max_chapters"]), 1)
         if "max_pages" in constraints:
             constraints["max_pages"] = max(int(constraints["max_pages"]), 1)
+        if "search_pages" in constraints:
+            constraints["search_pages"] = min(
+                max(int(constraints["search_pages"]), 1),
+                self.search_page_limit,
+            )
 
         return constraints
 
@@ -962,41 +982,49 @@ class JMComicPlugin(Star):
             keyword = step["keyword"]
             main_tag = int(step.get("main_tag", 0))
             order_by = step.get("order_by", "mr")
-            try:
-                page = client.search(
-                    keyword,
-                    page=1,
-                    main_tag=main_tag,
-                    order_by=order_by,
-                    time="a",
-                    category="0",
-                    sub_category=None,
-                )
-            except Exception as exc:
-                logger.warning(
-                    f"JMComic search step failed: keyword={keyword}, main_tag={main_tag}, error={exc}"
-                )
-                attempts.append(
-                    {"keyword": keyword, "main_tag": main_tag, "order_by": order_by, "total": 0}
-                )
-                continue
-
-            attempts.append(
-                {
-                    "keyword": keyword,
-                    "main_tag": main_tag,
-                    "order_by": order_by,
-                    "total": int(getattr(page, "total", 0) or 0),
-                }
-            )
+            attempt = {"keyword": keyword, "main_tag": main_tag, "order_by": order_by, "total": 0, "pages": 0}
             step_added = 0
-            for album in self._iter_search_page_items(page, keyword, main_tag):
-                album["order_by"] = order_by
-                if album["id"] not in items_by_id:
-                    items_by_id[album["id"]] = album
-                    step_added += 1
-                if step_added >= self.search_result_limit or len(items_by_id) >= self.search_candidate_limit:
+            search_pages = self._search_pages_for_step(step, plan, constraints or {})
+            step_limit = min(self.search_candidate_limit, self.search_result_limit * search_pages)
+
+            for page_number in range(1, search_pages + 1):
+                try:
+                    page = client.search(
+                        keyword,
+                        page=page_number,
+                        main_tag=main_tag,
+                        order_by=order_by,
+                        time="a",
+                        category="0",
+                        sub_category=None,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        f"JMComic search step failed: keyword={keyword}, "
+                        f"main_tag={main_tag}, page={page_number}, error={exc}"
+                    )
                     break
+
+                if page_number == 1:
+                    attempt["total"] = int(getattr(page, "total", 0) or 0)
+                attempt["pages"] = page_number
+
+                for album in self._iter_search_page_items(page, keyword, main_tag):
+                    album["order_by"] = order_by
+                    if album["id"] not in items_by_id:
+                        items_by_id[album["id"]] = album
+                        step_added += 1
+                    if step_added >= step_limit or len(items_by_id) >= self.search_candidate_limit:
+                        break
+
+                if step_added >= step_limit or len(items_by_id) >= self.search_candidate_limit:
+                    break
+
+                page_count = int(getattr(page, "page_count", 0) or 0)
+                if page_count and page_number >= page_count:
+                    break
+
+            attempts.append(attempt)
             if len(items_by_id) >= self.search_candidate_limit:
                 break
 
@@ -1014,6 +1042,32 @@ class JMComicPlugin(Star):
             "items": items[:result_limit],
             "constraints": constraints or {},
         }
+
+    def _search_pages_for_step(
+        self,
+        step: dict[str, Any],
+        plan: list[dict[str, Any]],
+        constraints: dict[str, Any],
+    ) -> int:
+        requested = self._coerce_positive_int(constraints.get("search_pages"))
+        if requested is not None:
+            return min(max(requested, 1), self.search_page_limit)
+
+        if self.search_page_limit <= 1:
+            return 1
+
+        main_tag = int(step.get("main_tag", 0) or 0)
+        order_by = str(step.get("order_by", "mr"))
+
+        if len(plan) >= 3:
+            return 1
+        if main_tag == 2:
+            return min(self.search_page_limit, 3)
+        if order_by in {"mv", "tf"}:
+            return min(self.search_page_limit, 2)
+        if constraints.get("max_chapters") or constraints.get("max_pages"):
+            return min(self.search_page_limit, 2)
+        return 1
 
     @staticmethod
     def _enrich_search_items(client: Any, items: list[dict[str, Any]]) -> None:

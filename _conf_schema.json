@@ -108,6 +108,12 @@
         "default": 6,
         "hint": "LLM/规则最多生成多少组关键词检索。有效范围 1-20，超出范围会自动修正"
     },
+    "search_page_limit": {
+        "description": "每组检索最大页数",
+        "type": "int",
+        "default": 3,
+        "hint": "每组搜索方案最多检索多少页。有效范围 1-10；插件会按查询自动决定实际页数。调大能增加候选，但会明显变慢并增加请求次数"
+    },
     "max_search_page_count": {
         "description": "搜索最大页数",
         "type": "int",
