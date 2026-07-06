@@ -304,7 +304,7 @@ class JMComicPlugin(Star):
         """搜索本子。"""
         search_query = search_query.strip()
         if not search_query:
-            yield event.plain_result("请输入搜索关键词，例如：jm 搜索 MANA")
+            yield event.plain_result("请输入搜索关键词，例如：jm 搜索 <关键词>")
             return
 
         result = await self._perform_search(event, search_query, "search")
@@ -429,7 +429,7 @@ class JMComicPlugin(Star):
         """兼容 jm 搜索 关键词。"""
         search_query = self._extract_search_query(event.message_str)
         if not search_query:
-            yield event.plain_result("请输入搜索关键词，例如：jm 搜索 MANA")
+            yield event.plain_result("请输入搜索关键词，例如：jm 搜索 <关键词>")
             return
         async for result in self.search(event, search_query):
             yield result
@@ -1183,7 +1183,7 @@ class JMComicPlugin(Star):
             "- 只有明确数字 JM 车号时，“下载 123456”“下车号 123456” => download。\n"
             "- 不要输出 search_download，本插件不做批量下载，只展示搜索结果。\n"
             "- query 去掉“帮我/搜一下/找一下/本子/漫画/有没有/推荐/来点/想看”等口语，但必须保留作者、作品、角色、标签、排序方式、前N个、不超过N章/页等约束。\n"
-            '输出格式示例：{"action":"search","query":"MANA"}'
+            '输出格式示例：{"action":"search","query":"关键词"}'
         )
 
     @staticmethod
