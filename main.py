@@ -52,32 +52,6 @@ SEARCH_ORDER_LABELS = {
     "tf": "喜欢",
     "mp": "页数",
 }
-SEARCH_SPLIT_TERMS = (
-    "未亡人",
-    "雪女",
-    "无修正",
-    "無修正",
-    "全彩",
-    "纯爱",
-    "純愛",
-    "人妻",
-    "母子",
-    "姐弟",
-    "姐姐",
-    "妹妹",
-    "女仆",
-    "女僕",
-    "教师",
-    "老師",
-    "老师",
-    "萝莉",
-    "蘿莉",
-    "巨乳",
-    "扶他",
-    "百合",
-    "NTR",
-    "ntr",
-)
 
 DEFAULT_CONFIG = {
     "download_dir": str(DOWNLOAD_DIR),
@@ -656,29 +630,22 @@ class JMComicPlugin(Star):
         return (
             "你是 JMComic Skill 检索规划器，只输出 JSON，不要输出解释。\n"
             "你不能直接搜索或下载，只负责生成工具参数，插件会执行 search_album 并展示结果。\n"
-            "JMComic 搜索偏字面匹配，模糊需求要拆成少量高质量的工具调用。\n"
             "工具 search_album 参数：keyword, main_tag, order_by。\n"
             "main_tag: 0=站内综合, 1=作品, 2=作者, 3=标签, 4=角色。\n"
-            "order_by: latest=最新, views=观看, likes=点赞, pictures=页数。\n"
+            "order_by: latest=最新, views=观看/浏览, likes=点赞/喜欢, pictures=页数。\n"
             "constraints 可选字段：max_chapters, max_pages, result_limit。\n"
             "规则：\n"
-            "- 去掉无助于站内命中的泛词：本子、漫画、风格、画风、类型、题材、主题、相关、这种。\n"
-            "- 保留真正的角色/作者/作品/标签关键词。\n"
-            "- 多个实词组成的偏好必须优先保留完整组合，不要只拆开。例如“雪女未亡人”必须先搜“雪女 未亡人”或“雪女未亡人”，再考虑单独“雪女”“未亡人”。\n"
-            "- 支持 JM 高级搜索语法：必须同时包含 A 和 B 时 keyword 用“+A +B”；包含 A 排除 B 时用“A -B”；A 和 B 都要/同时符合时可用“A B”或“+A +B”。\n"
-            "- 用户说“全彩且人妻/必须全彩并且人妻/包含全彩和人妻” => keyword='+全彩 +人妻'。\n"
-            "- 用户说“全彩但不要人妻/排除人妻” => keyword='全彩 -人妻'。\n"
-            "- 用户说“全彩 人妻/全彩和人妻都要” => keyword='+全彩 +人妻'。\n"
+            "- keyword 必须保留用户真正想搜的作者、作品、角色、标签或核心描述，去掉“本子/漫画/风格/题材/相关/这种/帮我/搜一下”等泛词。\n"
+            "- 多个核心词组成一个短语时，优先保留完整短语；如果短语可能过窄，可追加一条用空格分隔核心词的检索。\n"
+            "- 用户显式输入 JM 高级搜索语法（例如 +A +B、A -B）时，应原样保留 + 和 -。\n"
             "- “作者 XXX 的作品”必须 keyword=XXX 且 main_tag=2。\n"
-            "- “类似 某作品 / 某作品 画风”优先 keyword=某作品 且 main_tag=1，同时保留短篇/章数约束在 query 中。\n"
+            "- “角色 XXX”优先 keyword=XXX 且 main_tag=4；“标签 XXX”优先 keyword=XXX 且 main_tag=3。\n"
+            "- “类似 某作品 / 某作品 画风”优先 keyword=某作品 且 main_tag=1。\n"
             "- “短篇”“不要超过 3 章”应设置 constraints.max_chapters=3；如果只说短篇，默认 max_chapters=3。\n"
             "- “前 5 个/前10篇/5个结果”应设置 constraints.result_limit，不要把“前10篇”放进 keyword，不要生成下载动作。\n"
             "- 用户说“最多喜欢/最多点赞/最多爱心/按喜欢/按点赞”时，所有主要检索 order_by 必须用 likes。\n"
             "- 用户说“看的人多/最多观看/最多浏览/热门/人气”时，主要检索 order_by 用 views；如果同时明确喜欢，则以 likes 为准。\n"
-            "- 中文词可补充常见日文/英文别名；不要编造过多，最多 6 个检索。\n"
-            "- 例：雪女风格 => 雪女、Yuki Onna，并尝试标签 main_tag=3。\n"
-            "- 例：雪女未亡人，按照最多喜欢排序 => keyword 先用“雪女 未亡人”，order_by 用 likes。\n"
-            "- 例：作者 XXX 的作品按浏览量排序 => keyword=XXX, main_tag=2, order_by=views。\n"
+            "- 不要编造不存在的作者、作品、角色或标签；最多输出 6 个检索。\n"
             '输出格式：{"searches":[{"keyword":"XXX","main_tag":2,"order_by":"views"}],'
             '"constraints":{"result_limit":5,"max_chapters":3}}'
         )
@@ -766,24 +733,12 @@ class JMComicPlugin(Star):
             return []
 
         variants = [keyword]
-        found_terms = [
-            (keyword.find(term), term)
-            for term in SEARCH_SPLIT_TERMS
-            if keyword.find(term) >= 0
-        ]
-        found_terms = sorted(found_terms, key=lambda item: item[0])
-        ordered_terms = []
-        for _index, term in found_terms:
-            if term not in ordered_terms:
-                ordered_terms.append(term)
-
-        if len(ordered_terms) >= 2:
-            spaced = " ".join(ordered_terms)
-            if spaced not in variants:
+        separators = r"[\s,，、/|]+"
+        if re.search(separators, keyword):
+            parts = [part for part in re.split(separators, keyword) if part]
+            spaced = " ".join(parts)
+            if len(parts) >= 2 and spaced not in variants:
                 variants.append(spaced)
-            for term in ordered_terms:
-                if term not in variants:
-                    variants.append(term)
 
         return variants
 
@@ -820,27 +775,6 @@ class JMComicPlugin(Star):
         if re.search(r"(^|\s)[+-]\S+", search_query):
             keyword = JMComicPlugin._strip_search_noise(search_query)
             return re.sub(r"\s+", " ", keyword).strip(" ，,。.!！?")
-
-        include_terms = []
-        for term in SEARCH_SPLIT_TERMS:
-            if term.lower() in search_query.lower() and term not in include_terms:
-                include_terms.append(term)
-
-        exclude_terms = []
-        exclude_match = re.search(r"(?:不要|排除|不含|去掉|别要)\s*([^\s，,。]+)", search_query)
-        if exclude_match:
-            raw_excludes = exclude_match.group(1)
-            for term in SEARCH_SPLIT_TERMS:
-                if term.lower() in raw_excludes.lower() and term not in exclude_terms:
-                    exclude_terms.append(term)
-
-        include_terms = [term for term in include_terms if term not in exclude_terms]
-        if exclude_terms and include_terms:
-            return " ".join([*include_terms, *[f"-{term}" for term in exclude_terms]])
-
-        if len(include_terms) >= 2 and re.search(r"(且|并且|同時|同时|都要|包含|符合|和)", search_query):
-            return " ".join(f"+{term}" for term in include_terms)
-
         return ""
 
     @staticmethod
@@ -1240,8 +1174,8 @@ class JMComicPlugin(Star):
             "3. download_result：用户要求下载上一次搜索结果中的第几个。字段 index 为 1 开始的整数。\n"
             "4. none：不是 JMComic 搜索或下载需求。\n"
             "规则：\n"
-            "- “帮我搜一下无修正”“找点 MANA”“有没有纯爱本子” => search。\n"
-            "- “我想看雪女风格，并且看的人比较多的高质量的本” => search，query 为原始偏好或核心关键词。\n"
+            "- “帮我搜一下某个标签”“找点某位作者的作品”“有没有某类本子” => search。\n"
+            "- “我想看某个主题，并且看的人比较多的高质量内容” => search，query 保留主题和排序偏好。\n"
             "- “想看某某画风/某某题材/某某类型/热门高质量” => search。\n"
             "- “搜索作者 XXX 的作品，按浏览量排序，下载前 5 个最热门的本子” => search，不要真的下载，query 保留作者、浏览量、前5。\n"
             "- “找画风类似 某作品 的短篇故事，不超过 3 章” => search，query 保留作品名、短篇、不超过3章。\n"
