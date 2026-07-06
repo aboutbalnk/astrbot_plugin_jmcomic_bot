@@ -57,11 +57,13 @@ jm <id>
 
 相关配置：
 
-- `search_plan_limit`: 最多执行多少组搜索方案，默认 6。
-- `search_candidate_limit`: 智能搜索最多保留多少个候选，默认 30。
-- `search_result_limit`: 最终最多展示多少条结果，默认 10。
-- `max_search_page_count`: 过滤超过多少页或章节的内容，默认 100。
+- `search_plan_limit`: 最多执行多少组搜索方案，默认 6，范围 1-20。
+- `search_candidate_limit`: 智能搜索最多保留多少个候选，默认 30，范围为 `search_result_limit` 到 200。
+- `search_result_limit`: 最终最多展示多少条结果，默认 10，范围 1-50。
+- `max_search_page_count`: 过滤超过多少页或章节的内容，默认 100，范围 1-1000。
 - `filter_serial_tags`: 是否过滤连载/連載标签。
+
+如果这些数值配置超出范围，插件会在启动时自动修正到允许范围，不会中断启动。
 
 ## 命令
 

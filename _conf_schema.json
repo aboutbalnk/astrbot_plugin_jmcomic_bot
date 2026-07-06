@@ -94,25 +94,25 @@
         "description": "搜索展示数量",
         "type": "int",
         "default": 10,
-        "hint": "每次搜索最多展示多少条结果"
+        "hint": "每次搜索最多展示多少条结果。有效范围 1-50，超出范围会自动修正"
     },
     "search_candidate_limit": {
         "description": "搜索候选数量",
         "type": "int",
         "default": 30,
-        "hint": "智能搜索聚合详情前最多保留多少个候选。调大更慢，但排序更充分"
+        "hint": "智能搜索聚合详情前最多保留多少个候选。有效范围为搜索展示数量到 200，调大更慢，但排序更充分；超出范围会自动修正"
     },
     "search_plan_limit": {
         "description": "智能检索计划数量",
         "type": "int",
         "default": 6,
-        "hint": "LLM/规则最多生成多少组关键词检索"
+        "hint": "LLM/规则最多生成多少组关键词检索。有效范围 1-20，超出范围会自动修正"
     },
     "max_search_page_count": {
         "description": "搜索最大页数",
         "type": "int",
         "default": 100,
-        "hint": "搜索结果中过滤超过该页数或章节数的项目，避免下载过大的连载内容"
+        "hint": "搜索结果中过滤超过该页数或章节数的项目。有效范围 1-1000，超出范围会自动修正"
     },
     "filter_serial_tags": {
         "description": "过滤连载标签",
