@@ -1,0 +1,10 @@
+name: astrbot_plugin_jmcomic
+display_name: JMComic
+desc: 在 AstrBot 中使用 JMComic-Crawler-Python 查询和下载 JM 内容。
+short_desc: JMComic 查询、智能搜索与 PDF 发送插件。
+version: 0.1.2
+author: aboutbalnk
+repo: https://github.com/aboutbalnk/astrbot_plugin_jmcomic_bot
+astrbot_version: ">=4.0.0"
+support_platforms:
+  - aiocqhttp

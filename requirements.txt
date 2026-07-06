@@ -1,0 +1,7 @@
+commonX>=0.6.38
+curl-cffi
+img2pdf
+pikepdf
+Pillow
+pycryptodome
+PyYAML

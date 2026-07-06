@@ -1,0 +1,157 @@
+{
+    "download_dir": {
+        "description": "图片下载目录",
+        "type": "string",
+        "default": "/AstrBot/data/jmcomic",
+        "hint": "JM 原图临时下载目录。默认发送完成后会清理图片目录"
+    },
+    "pdf_dir": {
+        "description": "PDF 输出目录",
+        "type": "string",
+        "default": "/AstrBot/data/jmcomic_pdf",
+        "hint": "生成 PDF 的目录。发送成功后会删除 PDF；上传超时时会延迟删除"
+    },
+    "compress_temp_dir": {
+        "description": "压缩临时目录",
+        "type": "string",
+        "default": "/AstrBot/data/jmcomic_compress",
+        "hint": "压缩图片生成 PDF 时使用的临时目录"
+    },
+    "max_send_mb": {
+        "description": "PDF 目标大小(MB)",
+        "type": "float",
+        "default": 35.0,
+        "hint": "压缩 PDF 时尽量压到该大小以内。若仍超出，会发送最后一次压缩结果"
+    },
+    "pdf_compress_profiles": {
+        "description": "PDF 压缩档位",
+        "type": "string",
+        "default": "1600:68,1280:58,1000:48",
+        "hint": "格式 max_side:quality，用逗号分隔；例如 1600:68,1280:58。max_side 是图片最长边，quality 是 JPEG 质量"
+    },
+    "encrypt_pdf": {
+        "description": "PDF 加密",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后发送前使用随机数字密码加密 PDF，并在发送后回复密码"
+    },
+    "pdf_password_digits": {
+        "description": "PDF 密码位数",
+        "type": "int",
+        "default": 4,
+        "hint": "随机数字密码位数，默认 4 位"
+    },
+    "delete_after_timeout_seconds": {
+        "description": "上传超时后删除延迟(秒)",
+        "type": "int",
+        "default": 900,
+        "hint": "WebSocket 上传接口超时时，平台可能仍在发送文件；插件会等待该时长后删除本地 PDF"
+    },
+    "password_notice_delay_seconds": {
+        "description": "上传超时后密码提示延迟(秒)",
+        "type": "int",
+        "default": 60,
+        "hint": "上传接口超时时，延迟多久再发送 PDF 密码提示"
+    },
+    "cleanup_download_images": {
+        "description": "清理下载图片",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后生成 PDF 后删除本次下载的图片目录"
+    },
+    "show_download_start_notice": {
+        "description": "开始下载提示",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后下载前回复“开始下载 JMxxxx”"
+    },
+    "send_to_current_session": {
+        "description": "发回当前会话",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后 PDF 会发送到触发 jm 指令的会话。关闭后只发送到下面配置的额外目标会话"
+    },
+    "target_sessions": {
+        "description": "额外发送目标",
+        "type": "list",
+        "item_type": "string",
+        "default": [],
+        "hint": "AstrBot 统一会话 ID，例如 default:GroupMessage:674779679、default:FriendMessage:2387081314。也支持当前平台下的 group:群号、friend:QQ号 简写"
+    },
+    "notify_password_to_target_sessions": {
+        "description": "额外目标发送密码",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后加密 PDF 发到额外目标时，也会向这些目标发送 PDF 密码提示"
+    },
+    "search_result_limit": {
+        "description": "搜索展示数量",
+        "type": "int",
+        "default": 10,
+        "hint": "每次搜索最多展示多少条结果"
+    },
+    "search_candidate_limit": {
+        "description": "搜索候选数量",
+        "type": "int",
+        "default": 30,
+        "hint": "智能搜索聚合详情前最多保留多少个候选。调大更慢，但排序更充分"
+    },
+    "search_plan_limit": {
+        "description": "智能检索计划数量",
+        "type": "int",
+        "default": 6,
+        "hint": "LLM/规则最多生成多少组关键词检索"
+    },
+    "max_search_page_count": {
+        "description": "搜索最大页数",
+        "type": "int",
+        "default": 100,
+        "hint": "搜索结果中过滤超过该页数或章节数的项目，避免下载过大的连载内容"
+    },
+    "filter_serial_tags": {
+        "description": "过滤连载标签",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后搜索结果会过滤带连载/連載标签的项目"
+    },
+    "enable_natural_language": {
+        "description": "自然语言搜索",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后非 jm 指令也可触发智能搜索/下载"
+    },
+    "group_natural_language_require_at": {
+        "description": "群聊自然语言需要@",
+        "type": "bool",
+        "default": true,
+        "hint": "开启后群聊里只有 @ 机器人时才处理自然语言；jm 指令不受影响"
+    },
+    "html_domains": {
+        "description": "JM 域名列表",
+        "type": "list",
+        "item_type": "string",
+        "default": [
+            "jmcomic1.me",
+            "jmcomic.me"
+        ],
+        "hint": "jmcomic HTML/API 客户端使用的域名列表"
+    },
+    "image_thread_count": {
+        "description": "图片下载线程数",
+        "type": "int",
+        "default": 8,
+        "hint": "单章节图片下载并发数"
+    },
+    "photo_thread_count": {
+        "description": "章节下载线程数",
+        "type": "int",
+        "default": 2,
+        "hint": "整本下载时章节并发数"
+    },
+    "jm_log": {
+        "description": "jmcomic 库日志",
+        "type": "bool",
+        "default": false,
+        "hint": "开启 jmcomic 底层库日志，排查下载问题时使用"
+    }
+}

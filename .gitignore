@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+.DS_Store
+.idea/
+.vscode/
+
+*.log
+*.tmp
+
+/data/
+/downloads/
+/jmcomic/
+/jmcomic_pdf/
+/jmcomic_compress/
+/option.runtime.yml
